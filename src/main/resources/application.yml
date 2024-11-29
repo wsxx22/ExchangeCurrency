@@ -6,11 +6,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
-  security:
-    user:
-      name: admin
-      password: admin123
-
 exchange:
   nbp:
     base-url: "http://api.nbp.pl/api/exchangerates/rates/c"
