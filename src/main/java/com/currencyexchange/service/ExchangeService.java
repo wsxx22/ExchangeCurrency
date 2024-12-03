@@ -3,7 +3,6 @@ package com.currencyexchange.service;
 import static com.currencyexchange.exception.ErrorCode.UNSUPPORTED_CURRENCY_PAIR;
 
 import com.currencyexchange.dto.AccountResponse;
-import com.currencyexchange.dto.ExchangeContext;
 import com.currencyexchange.dto.ExchangeRequest;
 import com.currencyexchange.dto.NbpResponse;
 import com.currencyexchange.exception.ErrorCode;
@@ -13,8 +12,6 @@ import com.currencyexchange.model.Account;
 import com.currencyexchange.model.Currency;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Map;
-import java.util.function.Function;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -24,10 +21,6 @@ public class ExchangeService {
 	private final ExchangeRateCache rateCache;
 
 	private final AccountService accountService;
-
-	private final Map<String, Function<ExchangeContext, BigDecimal>> exchangeCalculations = Map.of("PLN-USD",
-			ctx -> ctx.getAmount().divide(ctx.getRate().getAskRate(), 2, RoundingMode.HALF_UP), "USD-PLN",
-			ctx -> ctx.getAmount().multiply(ctx.getRate().getBidRate()).setScale(2, RoundingMode.HALF_UP));
 
 	public ExchangeService(ExchangeRateProvider rateProvider, ExchangeRateCache rateCache, AccountService accountService) {
 		this.rateProvider = rateProvider;
