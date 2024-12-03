@@ -22,12 +22,16 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AccountService {
 
 	private final AccountRepository accountRepository;
 	private final PasswordEncoder passwordEncoder;
+
+	private final Object lock = new Object();
 
 	public AccountService(AccountRepository accountRepository, PasswordEncoder passwordEncoder) {
 		this.accountRepository = accountRepository;
@@ -77,28 +81,32 @@ public class AccountService {
 		return accountRepository.findByIdWithBalances(id).orElseThrow(() -> new NotFoundException(ACCOUNT_NOT_EXISTS.getMessage()));
 	}
 
-	Account updateAccountBalances(Account account, ExchangeRequest exchangeRequest, BigDecimal exchangedAmount) {
+	@Transactional(isolation = Isolation.REPEATABLE_READ)
+	public Account updateAccountBalances(Account account, ExchangeRequest exchangeRequest, BigDecimal exchangedAmount) {
 		Currency sourceCurrency = exchangeRequest.getSourceCurrency();
 		Currency targetCurrency = exchangeRequest.getTargetCurrency();
 
-		AccountBalance sourceBalance = account.getBalances()
-				.stream()
-				.filter(balance -> balance.getCurrency().equals(sourceCurrency))
-				.findFirst()
-				.orElseThrow(() -> new NotFoundException(SOURCE_BALANCE_NOT_FOUND.getMessage()));
+		synchronized (lock) {
+			AccountBalance sourceBalance = account.getBalances()
+					.stream()
+					.filter(balance -> balance.getCurrency().equals(sourceCurrency))
+					.findFirst()
+					.orElseThrow(() -> new NotFoundException(SOURCE_BALANCE_NOT_FOUND.getMessage()));
 
-		AccountBalance targetBalance = account.getBalances()
-				.stream()
-				.filter(balance -> balance.getCurrency().equals(targetCurrency))
-				.findFirst()
-				.orElse(AccountBalance.builder().account(account).currency(targetCurrency).balance(BigDecimal.ZERO).build());
+			AccountBalance targetBalance = account.getBalances()
+					.stream()
+					.filter(balance -> balance.getCurrency().equals(targetCurrency))
+					.findFirst()
+					.orElse(AccountBalance.builder().account(account).currency(targetCurrency).balance(BigDecimal.ZERO).build());
 
-		sourceBalance.setBalance(sourceBalance.getBalance().subtract(exchangeRequest.getAmount()));
-		targetBalance.setBalance(targetBalance.getBalance().add(exchangedAmount));
+			sourceBalance.setBalance(sourceBalance.getBalance().subtract(exchangeRequest.getAmount()));
+			targetBalance.setBalance(targetBalance.getBalance().add(exchangedAmount));
 
-		if (!account.getBalances().contains(targetBalance)) {
-			account.getBalances().add(targetBalance);
+			if (!account.getBalances().contains(targetBalance)) {
+				account.getBalances().add(targetBalance);
+			}
 		}
+
 		return accountRepository.save(account);
 	}
 
